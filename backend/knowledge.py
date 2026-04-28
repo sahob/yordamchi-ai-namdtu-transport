@@ -254,7 +254,11 @@ class KnowledgeBase:
 
     def _load_chunks(self) -> Iterable[Chunk]:
         self.kb_path.mkdir(parents=True, exist_ok=True)
-        for path in sorted(self.kb_path.glob("*.md")):
+        # .md fayllarni rekursiv o'qiydi: knowledge_base/lexuz_full/*.md ham yuklanadi.
+        # _backup_* papkalari indeksga kirmaydi.
+        for path in sorted(self.kb_path.rglob("*.md")):
+            if any(part.startswith("_backup") or part in {"old", "archive"} for part in path.parts):
+                continue
             meta, body = parse_markdown_file(path)
             yield from split_markdown_into_chunks(meta, body, path.stem)
 
