@@ -151,3 +151,34 @@ git push -u origin main
 ## RAG AI versiya haqida
 
 `0.2.0-rag` versiyada platforma tayyor FAQ emas, `knowledge_base` papkasiga yuklangan normativ-huquqiy hujjatlar asosida ixtiyoriy savolga AI javob yaratadi. Buning uchun `.env` faylida `OPENAI_API_KEY` bo'lishi kerak. Batafsil: `docs/AI_RAG_SOZLASH.md`.
+
+
+## Lex.uz hujjatlarini to'liq yuklash
+
+Platforma oldindan yozilgan FAQ bilan emas, `knowledge_base` ichidagi normativ-huquqiy hujjatlar asosida javob beradi. Lex.uz hujjatlarining to'liq matnini yuklash uchun:
+
+```cmd
+pip install -r requirements.txt
+python scripts\\download_lexuz_full.py --replace
+rmdir /s /q .cache
+python -m uvicorn backend.main:app --reload
+```
+
+Batafsil: `docs/TO_LIQ_LEXUZ_YUKLASH.md`.
+
+
+## Render Free deploy
+
+Render’da server uzoq aylanib qolmasligi uchun vector indeks avtomatik qurilishi o‘chirib qo‘yilgan.
+Environment Variables ichida `BUILD_VECTOR_INDEX_ON_STARTUP=false` bo‘lsin.
+
+Semantik vector qidiruvni to‘liq ishlatish uchun indeksni lokalda yarating va GitHub’ga yuklang:
+
+```cmd
+python scripts\build_vector_index.py
+git add .cache\vector_index.json
+git commit -m "Add prebuilt vector index"
+git push
+```
+
+Batafsil: `docs/RENDER_FREE_QAYTA_DEPLOY.md`.

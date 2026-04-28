@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     app_name: str = "Yordamchi AI — NamDTU Transport fakulteti"
-    app_version: str = "0.2.0-rag"
+    app_version: str = "0.2.1-render-ready"
     environment: str = "local"
 
     # RAG platforma uchun AI modeli talab qilinadi. OPENAI_API_KEY bo'lmasa,
@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     min_keyword_score: float = 0.03
     min_vector_score: float = 0.20
     use_vector_search: bool = True
+
+    # Render/free hostingda server tez start bo'lishi uchun vektor indeksni
+    # avtomatik qurmaymiz. Agar .cache/vector_index.json oldindan tayyor bo'lsa,
+    # tizim uni tez yuklaydi. Indeksni lokalda scripts/build_vector_index.py bilan quring.
+    build_vector_index_on_startup: bool = False
 
     knowledge_base_dir: str = "knowledge_base"
     vector_index_path: str = ".cache/vector_index.json"

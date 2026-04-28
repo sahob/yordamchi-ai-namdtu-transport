@@ -6,6 +6,8 @@ const questionEl = document.getElementById('question');
 const modeEl = document.getElementById('mode');
 const submitBtn = document.getElementById('submitBtn');
 const quickPrompts = document.getElementById('quickPrompts');
+const chunkCountEl = document.getElementById('chunkCount');
+const vectorStatusEl = document.getElementById('vectorStatus');
 
 async function checkHealth() {
   try {
@@ -13,9 +15,13 @@ async function checkHealth() {
     const data = await res.json();
     statusEl.textContent = `Ishlamoqda · ${data.chunks} bo‘lak`;
     statusEl.className = 'status ok';
+    chunkCountEl.textContent = data.chunks ?? '—';
+    vectorStatusEl.textContent = data.vector?.available ? 'Vector' : 'Keyword';
   } catch (error) {
     statusEl.textContent = 'Backend ulanmagan';
     statusEl.className = 'status error';
+    chunkCountEl.textContent = '—';
+    vectorStatusEl.textContent = 'Xato';
   }
 }
 
@@ -26,9 +32,12 @@ async function loadSources() {
     sourcesEl.innerHTML = '';
     data.sources.forEach((source) => {
       const li = document.createElement('li');
-      const num = source.document_number ? ` — ${source.document_number}` : '';
-      const date = source.date ? ` (${source.date})` : '';
-      li.textContent = `${source.title}${num}${date}`;
+      const title = document.createElement('strong');
+      title.textContent = source.title || 'Nomsiz manba';
+      const meta = document.createElement('small');
+      const details = [source.document_number, source.date, source.status].filter(Boolean).join(' · ');
+      meta.textContent = details || 'Ma’lumot kiritilmagan';
+      li.append(title, meta);
       sourcesEl.appendChild(li);
     });
   } catch (error) {
@@ -37,22 +46,47 @@ async function loadSources() {
 }
 
 function renderAnswer(data) {
-  const citationText = data.citations.map((c, idx) => {
-    const ref = [c.title, c.document_number, c.date, c.section].filter(Boolean).join(', ');
-    return `${idx + 1}. ${ref}\n   ${c.url || ''}`;
-  }).join('\n');
-
   answerEl.classList.remove('hidden');
-  answerEl.innerHTML = `<h3>Javob</h3>${escapeHtml(data.answer)}${citationText ? `\n\n<h3>Topilgan manbalar</h3>${escapeHtml(citationText)}` : ''}`;
-}
+  answerEl.innerHTML = '';
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+  const title = document.createElement('h3');
+  title.textContent = 'Javob';
+  const text = document.createElement('div');
+  text.className = 'answer__text';
+  text.textContent = data.answer || 'Javob qaytmadi.';
+  answerEl.append(title, text);
+
+  if (data.citations && data.citations.length) {
+    const sourceWrap = document.createElement('div');
+    sourceWrap.className = 'answer__sources';
+    const sourceTitle = document.createElement('h3');
+    sourceTitle.textContent = 'Topilgan manbalar';
+    sourceWrap.appendChild(sourceTitle);
+
+    data.citations.forEach((c, idx) => {
+      const card = document.createElement('div');
+      card.className = 'source-card';
+
+      const name = document.createElement('strong');
+      name.textContent = `${idx + 1}. ${c.title || 'Manba'}`;
+
+      const meta = document.createElement('span');
+      const ref = [c.document_number, c.date, c.section].filter(Boolean).join(' · ');
+      meta.textContent = ref || 'Qo‘shimcha ma’lumot yo‘q';
+
+      card.append(name, meta);
+      if (c.url) {
+        const link = document.createElement('a');
+        link.href = c.url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = c.url;
+        card.appendChild(link);
+      }
+      sourceWrap.appendChild(card);
+    });
+    answerEl.appendChild(sourceWrap);
+  }
 }
 
 form.addEventListener('submit', async (event) => {
@@ -63,7 +97,7 @@ form.addEventListener('submit', async (event) => {
   submitBtn.disabled = true;
   submitBtn.textContent = 'Javob tayyorlanmoqda...';
   answerEl.classList.remove('hidden');
-  answerEl.textContent = 'Savolga mos manbalar qidirilmoqda...';
+  answerEl.textContent = 'Savolga mos normativ-huquqiy manbalar qidirilmoqda...';
 
   try {
     const res = await fetch('/api/ask', {
@@ -75,7 +109,7 @@ form.addEventListener('submit', async (event) => {
     const data = await res.json();
     renderAnswer(data);
   } catch (error) {
-    answerEl.textContent = 'Javob olishda xatolik yuz berdi. Backend ishga tushganini tekshiring.';
+    answerEl.textContent = 'Javob olishda xatolik yuz berdi. Backend ishga tushganini, .env sozlamalarini va API billing holatini tekshiring.';
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Javob olish';

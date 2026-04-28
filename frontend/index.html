@@ -4,55 +4,120 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Yordamchi AI — NamDTU Transport fakulteti</title>
+  <meta name="description" content="NamDTU Transport fakulteti talabalari uchun normativ-huquqiy hujjatlar asosida AI yordamchi." />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
+  <div class="site-bg" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="/" aria-label="Yordamchi AI bosh sahifa">
+        <span class="brand__mark">NamDTU</span>
+        <span class="brand__text">
+          <strong>Yordamchi AI</strong>
+          <small>Transport fakulteti</small>
+        </span>
+      </a>
+
+      <nav class="navlinks" aria-label="Asosiy havolalar">
+        <a href="https://namdtu.uz" target="_blank" rel="noopener">NamDTU.uz</a>
+        <a href="#chat">Savol berish</a>
+        <a href="#sourcesBlock">Bilim bazasi</a>
+      </nav>
+    </div>
+  </header>
+
   <main class="app-shell">
-    <section class="hero">
-      <div class="badge">NamDTU Transport fakulteti</div>
-      <h1>Yordamchi AI</h1>
-      <p>Talabalarning normativ-huquqiy hujjatlar, o‘quv jarayoni va ichki tartib-qoidalar bo‘yicha savollariga tezkor, manbali va tushunarli javob beradi.</p>
+    <section class="hero" aria-labelledby="heroTitle">
+      <div class="hero__content">
+        <div class="eyebrow">Namangan davlat texnika universiteti · Transport fakulteti</div>
+        <h1 id="heroTitle">Talabalar uchun rasmiy manbaga tayangan AI yordamchi</h1>
+        <p>
+          Savolingizni erkin yozing. Platforma javobni tayyor FAQ’dan emas,
+          <strong>knowledge_base</strong> ichidagi normativ-huquqiy hujjatlardan mos bo‘laklarni topib,
+          AI modeli orqali shakllantiradi.
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="#chat">Savol berish</a>
+          <a class="btn btn--ghost" href="#sourcesBlock">Manbalarni ko‘rish</a>
+        </div>
+      </div>
+
+      <aside class="hero__panel" aria-label="Platforma imkoniyatlari">
+        <div class="orbit-mark">AI</div>
+        <h2>Yordamchi AI</h2>
+        <p>Normativ-huquqiy hujjatlar asosida tezkor, manbali va tushunarli javob.</p>
+        <div class="stats-grid">
+          <div>
+            <span id="chunkCount">—</span>
+            <small>hujjat bo‘lagi</small>
+          </div>
+          <div>
+            <span id="vectorStatus">—</span>
+            <small>qidiruv holati</small>
+          </div>
+        </div>
+      </aside>
     </section>
 
-    <section class="chat-card" aria-label="AI chat">
-      <div class="chat-header">
-        <div>
-          <h2>Talaba savoli</h2>
-          <p>Masalan: “Akademik ta’til olish tartibi qanday?”</p>
+    <section class="layout-grid">
+      <section id="chat" class="chat-card" aria-label="AI chat">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">Online maslahat</span>
+            <h2>Talaba savoli</h2>
+            <p>Masalan: “Kontraktni kechiktirsam nima bo‘ladi?”</p>
+          </div>
+          <span id="status" class="status">Tekshirilmoqda...</span>
         </div>
-        <span id="status" class="status">Tekshirilmoqda...</span>
-      </div>
 
-      <div class="quick-prompts" id="quickPrompts">
-        <button>Kontrakt to‘lovi bo‘yicha tartib qanday?</button>
-        <button>Akademik ta’til olish mumkinmi?</button>
-        <button>Talabalar turar joyiga kimlar imtiyozli joylashadi?</button>
-        <button>O‘qishni ko‘chirish tartibi qanday?</button>
-      </div>
-
-      <form id="askForm" class="ask-form">
-        <textarea id="question" rows="4" placeholder="Savolingizni yozing..." required></textarea>
-        <div class="form-actions">
-          <select id="mode" aria-label="Javob rejimi">
-            <option value="short">Qisqa javob</option>
-            <option value="detailed">Batafsil javob</option>
-            <option value="steps">Qadam-baqadam</option>
-          </select>
-          <button type="submit" id="submitBtn">Javob olish</button>
+        <div class="notice">
+          <strong>Eslatma:</strong> javoblar maslahat xarakterida. Yakuniy huquqiy qaror tegishli mas’ul bo‘lim yoki rasmiy hujjat asosida qabul qilinadi.
         </div>
-      </form>
 
-      <article id="answer" class="answer hidden"></article>
-    </section>
+        <div class="quick-prompts" id="quickPrompts" aria-label="Namuna savollar">
+          <button type="button">Akademik ta’til olish tartibi qanday?</button>
+          <button type="button">Talaba qanday hollarda o‘qishdan chetlashtiriladi?</button>
+          <button type="button">Yakuniy nazoratdan o‘tolmasam nima bo‘ladi?</button>
+          <button type="button">Talabalar turar joyiga kimlar imtiyozli joylashadi?</button>
+        </div>
 
-    <section class="sources-card">
-      <div>
-        <h2>Bilim bazasi</h2>
-        <p>Javoblar Lex.uz va universitet ichki hujjatlari asosida shakllantiriladi. MVP versiyada namunaviy manbalar kiritilgan.</p>
-      </div>
-      <ul id="sources"></ul>
+        <form id="askForm" class="ask-form">
+          <label class="sr-only" for="question">Savol matni</label>
+          <textarea id="question" rows="5" placeholder="Savolingizni yozing... Masalan: dars qoldirish, kontrakt, stipendiya, akademik ta’til yoki ko‘chirish tartibi" required></textarea>
+          <div class="form-actions">
+            <select id="mode" aria-label="Javob rejimi">
+              <option value="short">Qisqa javob</option>
+              <option value="detailed">Batafsil javob</option>
+              <option value="steps">Qadam-baqadam</option>
+            </select>
+            <button type="submit" id="submitBtn">Javob olish</button>
+          </div>
+        </form>
+
+        <article id="answer" class="answer hidden" aria-live="polite"></article>
+      </section>
+
+      <aside id="sourcesBlock" class="sources-card">
+        <div class="section-heading compact">
+          <div>
+            <span class="section-kicker">RAG bilim bazasi</span>
+            <h2>Manbalar</h2>
+            <p>Javoblar Lex.uz va universitet ichki hujjatlari bo‘yicha yuklangan `.md` fayllardan olinadi.</p>
+          </div>
+        </div>
+        <ul id="sources" class="sources-list"></ul>
+      </aside>
     </section>
   </main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <strong>Yordamchi AI — NamDTU Transport fakulteti</strong>
+      <span>Normativ-huquqiy hujjatlar asosida AI maslahat platformasi</span>
+    </div>
+  </footer>
 
   <script src="/static/script.js"></script>
 </body>

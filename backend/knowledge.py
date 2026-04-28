@@ -146,13 +146,13 @@ def _chunk_signature(chunks: list[Chunk], embedding_model: str) -> str:
 
 
 class VectorIndex:
-    def __init__(self, chunks: list[Chunk]) -> None:
+    def __init__(self, chunks: list[Chunk], allow_build: bool = False) -> None:
         self.settings = get_settings()
         self.chunks = chunks
         self.embeddings: list[list[float]] = []
         self.available = False
         self.error: str | None = None
-        self._load_or_build()
+        self._load_or_build(allow_build=allow_build)
 
     def _index_path(self) -> Path:
         path = Path(self.settings.vector_index_path)
@@ -161,7 +161,7 @@ class VectorIndex:
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
-    def _load_or_build(self) -> None:
+    def _load_or_build(self, allow_build: bool = False) -> None:
         if not self.settings.openai_api_key:
             self.error = "OPENAI_API_KEY topilmadi"
             return
@@ -176,7 +176,15 @@ class VectorIndex:
                     return
             except Exception:
                 pass
-        self._build(signature, path)
+        if allow_build:
+            self._build(signature, path)
+        else:
+            self.available = False
+            self.error = (
+                "Vector indeks cache topilmadi yoki eskirgan. Server tez ishga tushishi uchun "
+                "indeks avtomatik qurilmadi. scripts/build_vector_index.py ni lokalda ishga tushirib "
+                ".cache/vector_index.json faylini GitHub'ga yuklang yoki USE_VECTOR_SEARCH=false qiling."
+            )
 
     def _build(self, signature: str, path: Path) -> None:
         try:
@@ -250,7 +258,10 @@ class KnowledgeBase:
             counts = Counter(tokenize(chunk.search_text))
             self.chunk_tokens.append(counts)
             self.doc_freq.update(counts.keys())
-        self.vector_index = VectorIndex(self.chunks) if self.settings.use_vector_search else None
+        self.vector_index = (
+            VectorIndex(self.chunks, allow_build=self.settings.build_vector_index_on_startup)
+            if self.settings.use_vector_search else None
+        )
 
     def _load_chunks(self) -> Iterable[Chunk]:
         self.kb_path.mkdir(parents=True, exist_ok=True)
