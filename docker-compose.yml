@@ -1,0 +1,10 @@
+services:
+  yordamchi-ai:
+    build: .
+    container_name: yordamchi-ai-namdtu-transport
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./knowledge_base:/app/knowledge_base

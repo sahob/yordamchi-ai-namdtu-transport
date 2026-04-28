@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Yordamchi AI — NamDTU Transport fakulteti</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero">
+      <div class="badge">NamDTU Transport fakulteti</div>
+      <h1>Yordamchi AI</h1>
+      <p>Talabalarning normativ-huquqiy hujjatlar, o‘quv jarayoni va ichki tartib-qoidalar bo‘yicha savollariga tezkor, manbali va tushunarli javob beradi.</p>
+    </section>
+
+    <section class="chat-card" aria-label="AI chat">
+      <div class="chat-header">
+        <div>
+          <h2>Talaba savoli</h2>
+          <p>Masalan: “Akademik ta’til olish tartibi qanday?”</p>
+        </div>
+        <span id="status" class="status">Tekshirilmoqda...</span>
+      </div>
+
+      <div class="quick-prompts" id="quickPrompts">
+        <button>Kontrakt to‘lovi bo‘yicha tartib qanday?</button>
+        <button>Akademik ta’til olish mumkinmi?</button>
+        <button>Talabalar turar joyiga kimlar imtiyozli joylashadi?</button>
+        <button>O‘qishni ko‘chirish tartibi qanday?</button>
+      </div>
+
+      <form id="askForm" class="ask-form">
+        <textarea id="question" rows="4" placeholder="Savolingizni yozing..." required></textarea>
+        <div class="form-actions">
+          <select id="mode" aria-label="Javob rejimi">
+            <option value="short">Qisqa javob</option>
+            <option value="detailed">Batafsil javob</option>
+            <option value="steps">Qadam-baqadam</option>
+          </select>
+          <button type="submit" id="submitBtn">Javob olish</button>
+        </div>
+      </form>
+
+      <article id="answer" class="answer hidden"></article>
+    </section>
+
+    <section class="sources-card">
+      <div>
+        <h2>Bilim bazasi</h2>
+        <p>Javoblar Lex.uz va universitet ichki hujjatlari asosida shakllantiriladi. MVP versiyada namunaviy manbalar kiritilgan.</p>
+      </div>
+      <ul id="sources"></ul>
+    </section>
+  </main>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
