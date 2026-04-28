@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -42,6 +40,7 @@ class Citation(BaseModel):
     section: str = ""
     url: str = ""
     score: float
+    method: str = ""
 
 
 class AskResponse(BaseModel):
@@ -60,7 +59,13 @@ def index() -> FileResponse:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "app": settings.app_name, "chunks": len(kb.chunks)}
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "chunks": len(kb.chunks),
+        "vector": kb.vector_status(),
+        "ai_model_configured": bool(settings.openai_api_key),
+    }
 
 
 @app.get("/api/sources")
@@ -70,16 +75,17 @@ def sources() -> dict:
 
 @app.post("/api/reload")
 def reload_knowledge_base() -> dict:
-    # MVP uchun oddiy endpoint. Production holatda buni admin auth bilan himoyalang.
+    # Production holatda buni admin login bilan himoyalash kerak.
     kb.reload()
-    return {"status": "reloaded", "chunks": len(kb.chunks)}
+    return {"status": "reloaded", "chunks": len(kb.chunks), "vector": kb.vector_status()}
 
 
 @app.post("/api/ask", response_model=AskResponse)
 def ask(payload: AskRequest) -> AskResponse:
-    results = kb.search(payload.question)
-    relevant = [r for r in results if r.score >= settings.min_relevance_score]
-    answer = generate_answer(payload.question, relevant)
+    # Tayyor FAQ emas: har safar savol uchun bilim bazasidan mos hujjat bo'laklari olinadi,
+    # keyin AI modeli aynan shu kontekst asosida javob yaratadi.
+    relevant = kb.search(payload.question)
+    answer = generate_answer(payload.question, relevant, payload.mode)
     citations = [
         Citation(
             title=r.chunk.meta.title,
@@ -88,6 +94,7 @@ def ask(payload: AskRequest) -> AskResponse:
             section=r.chunk.meta.section,
             url=r.chunk.meta.url,
             score=round(r.score, 4),
+            method=r.method,
         )
         for r in relevant
     ]

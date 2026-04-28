@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import re
 from collections import Counter
@@ -12,6 +14,7 @@ import yaml
 from .config import get_settings, project_root
 from .transliteration import normalize_for_search
 
+
 @dataclass(slots=True)
 class SourceMeta:
     title: str
@@ -21,6 +24,7 @@ class SourceMeta:
     section: str = ""
     status: str = "amalda"
 
+
 @dataclass(slots=True)
 class Chunk:
     id: str
@@ -28,20 +32,30 @@ class Chunk:
     search_text: str
     meta: SourceMeta
 
+
 @dataclass(slots=True)
 class SearchResult:
     chunk: Chunk
     score: float
+    method: str = "keyword"
+
 
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
 HEADER_RE = re.compile(r"^(#{1,3})\s+(.+)$", re.MULTILINE)
 TOKEN_RE = re.compile(r"[a-zа-яёғқўҳʼʻ0-9]{2,}", re.IGNORECASE)
-STOPWORDS = {"uchun","bilan","boyicha","bo‘yicha","qanday","nima","qachon","kerak","mumkin","haqida","talaba","talabalar","men","menga","shu","bu","олиш","учун","билан","қандай","нима","қачон","керак","мумкин","ҳақида"}
+STOPWORDS = {
+    "uchun", "bilan", "boyicha", "bo'yicha", "bo‘yicha", "qanday", "nima", "qachon",
+    "kerak", "mumkin", "haqida", "talaba", "talabalar", "men", "menga", "shu", "bu",
+    "the", "and", "или", "это", "для", "олиш", "учун", "билан", "қандай", "нима",
+    "қачон", "керак", "мумкин", "ҳақида", "талаба", "талабалар",
+}
+
 
 def tokenize(text: str) -> list[str]:
     normalized = normalize_for_search(text)
     tokens = [t.strip("ʼʻ'").lower() for t in TOKEN_RE.findall(normalized)]
     return [t for t in tokens if t and t not in STOPWORDS]
+
 
 def parse_markdown_file(path: Path) -> tuple[SourceMeta, str]:
     raw = path.read_text(encoding="utf-8")
@@ -60,6 +74,30 @@ def parse_markdown_file(path: Path) -> tuple[SourceMeta, str]:
     )
     return meta, body.strip()
 
+
+def _split_long_text(text: str, max_chars: int = 2200, overlap: int = 250) -> list[str]:
+    """Uzoq bo'limlarni RAG uchun kichik bo'laklarga ajratadi."""
+    text = text.strip()
+    if len(text) <= max_chars:
+        return [text]
+
+    parts: list[str] = []
+    start = 0
+    while start < len(text):
+        end = min(start + max_chars, len(text))
+        if end < len(text):
+            # Gap yoki xatboshi chegarasiga yaqin joyda kesish.
+            candidates = [text.rfind("\n\n", start, end), text.rfind(". ", start, end), text.rfind("; ", start, end)]
+            cut = max(candidates)
+            if cut > start + max_chars // 2:
+                end = cut + 1
+        parts.append(text[start:end].strip())
+        if end >= len(text):
+            break
+        start = max(end - overlap, 0)
+    return [p for p in parts if p]
+
+
 def split_markdown_into_chunks(meta: SourceMeta, body: str, file_stem: str) -> list[Chunk]:
     sections: list[tuple[str, str]] = []
     matches = list(HEADER_RE.finditer(body))
@@ -73,24 +111,123 @@ def split_markdown_into_chunks(meta: SourceMeta, body: str, file_stem: str) -> l
             content = body[start:end].strip()
             if content:
                 sections.append((title, content))
+
     chunks: list[Chunk] = []
-    for i, (section, content) in enumerate(sections, start=1):
-        enriched_meta = SourceMeta(
-            title=meta.title,
-            document_number=meta.document_number,
-            date=meta.date,
-            url=meta.url,
-            section=section,
-            status=meta.status,
-        )
-        chunk_text = f"{section}\n{content}".strip()
-        chunks.append(Chunk(
-            id=f"{file_stem}-{i}",
-            text=chunk_text,
-            search_text=normalize_for_search(f"{meta.title}\n{section}\n{content}"),
-            meta=enriched_meta,
-        ))
+    chunk_no = 1
+    for section, content in sections:
+        for part_no, part in enumerate(_split_long_text(content), start=1):
+            section_name = section if part_no == 1 else f"{section} — davom {part_no}"
+            enriched_meta = SourceMeta(
+                title=meta.title,
+                document_number=meta.document_number,
+                date=meta.date,
+                url=meta.url,
+                section=section_name,
+                status=meta.status,
+            )
+            chunk_text = f"{section_name}\n{part}".strip()
+            chunks.append(Chunk(
+                id=f"{file_stem}-{chunk_no}",
+                text=chunk_text,
+                search_text=normalize_for_search(f"{meta.title}\n{section_name}\n{part}"),
+                meta=enriched_meta,
+            ))
+            chunk_no += 1
     return chunks
+
+
+def _dot(a: list[float], b: list[float]) -> float:
+    return sum(x * y for x, y in zip(a, b))
+
+
+def _chunk_signature(chunks: list[Chunk], embedding_model: str) -> str:
+    payload = "\n".join(f"{c.id}:{hashlib.sha256(c.search_text.encode('utf-8')).hexdigest()}" for c in chunks)
+    return hashlib.sha256(f"{embedding_model}\n{payload}".encode("utf-8")).hexdigest()
+
+
+class VectorIndex:
+    def __init__(self, chunks: list[Chunk]) -> None:
+        self.settings = get_settings()
+        self.chunks = chunks
+        self.embeddings: list[list[float]] = []
+        self.available = False
+        self.error: str | None = None
+        self._load_or_build()
+
+    def _index_path(self) -> Path:
+        path = Path(self.settings.vector_index_path)
+        if not path.is_absolute():
+            path = project_root() / path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _load_or_build(self) -> None:
+        if not self.settings.openai_api_key:
+            self.error = "OPENAI_API_KEY topilmadi"
+            return
+        signature = _chunk_signature(self.chunks, self.settings.openai_embedding_model)
+        path = self._index_path()
+        if path.exists():
+            try:
+                cached = json.loads(path.read_text(encoding="utf-8"))
+                if cached.get("signature") == signature and len(cached.get("embeddings", [])) == len(self.chunks):
+                    self.embeddings = cached["embeddings"]
+                    self.available = True
+                    return
+            except Exception:
+                pass
+        self._build(signature, path)
+
+    def _build(self, signature: str, path: Path) -> None:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=self.settings.openai_api_key)
+            texts = [c.search_text[:8000] for c in self.chunks]
+            embeddings: list[list[float]] = []
+            batch_size = 64
+            for start in range(0, len(texts), batch_size):
+                batch = texts[start:start + batch_size]
+                response = client.embeddings.create(
+                    model=self.settings.openai_embedding_model,
+                    input=batch,
+                )
+                embeddings.extend([item.embedding for item in response.data])
+            if len(embeddings) != len(self.chunks):
+                raise RuntimeError("Embedding soni chunk soniga mos kelmadi")
+            self.embeddings = embeddings
+            self.available = True
+            path.write_text(json.dumps({
+                "signature": signature,
+                "model": self.settings.openai_embedding_model,
+                "embeddings": embeddings,
+            }, ensure_ascii=False), encoding="utf-8")
+        except Exception as exc:
+            self.available = False
+            self.error = str(exc)
+
+    def search(self, query: str, limit: int) -> list[SearchResult]:
+        if not self.available or not self.embeddings:
+            return []
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=self.settings.openai_api_key)
+            response = client.embeddings.create(
+                model=self.settings.openai_embedding_model,
+                input=normalize_for_search(query),
+            )
+            q_embedding = response.data[0].embedding
+            scored = [
+                SearchResult(chunk=chunk, score=_dot(q_embedding, embedding), method="vector")
+                for chunk, embedding in zip(self.chunks, self.embeddings)
+            ]
+            scored.sort(key=lambda item: item.score, reverse=True)
+            return [r for r in scored[:limit] if r.score >= self.settings.min_vector_score]
+        except Exception as exc:
+            self.error = str(exc)
+            return []
+
 
 class KnowledgeBase:
     def __init__(self) -> None:
@@ -102,6 +239,7 @@ class KnowledgeBase:
         self.chunks: list[Chunk] = []
         self.chunk_tokens: list[Counter[str]] = []
         self.doc_freq: Counter[str] = Counter()
+        self.vector_index: VectorIndex | None = None
         self.reload()
 
     def reload(self) -> None:
@@ -112,6 +250,7 @@ class KnowledgeBase:
             counts = Counter(tokenize(chunk.search_text))
             self.chunk_tokens.append(counts)
             self.doc_freq.update(counts.keys())
+        self.vector_index = VectorIndex(self.chunks) if self.settings.use_vector_search else None
 
     def _load_chunks(self) -> Iterable[Chunk]:
         self.kb_path.mkdir(parents=True, exist_ok=True)
@@ -133,7 +272,7 @@ class KnowledgeBase:
                 )
         return list(seen.values())
 
-    def _score(self, query_terms: Counter[str], chunk_terms: Counter[str]) -> float:
+    def _keyword_score(self, query_terms: Counter[str], chunk_terms: Counter[str]) -> float:
         if not query_terms or not chunk_terms:
             return 0.0
         total_docs = max(len(self.chunks), 1)
@@ -147,12 +286,44 @@ class KnowledgeBase:
         norm = math.sqrt(sum(v * v for v in chunk_terms.values())) or 1.0
         return score / norm
 
-    def search(self, query: str, limit: int | None = None) -> list[SearchResult]:
+    def keyword_search(self, query: str, limit: int | None = None) -> list[SearchResult]:
         limit = limit or self.settings.max_context_chunks
         query_terms = Counter(tokenize(query))
         scored = [
-            SearchResult(chunk=chunk, score=self._score(query_terms, terms))
+            SearchResult(chunk=chunk, score=self._keyword_score(query_terms, terms), method="keyword")
             for chunk, terms in zip(self.chunks, self.chunk_tokens)
         ]
         scored.sort(key=lambda item: item.score, reverse=True)
-        return [result for result in scored[:limit] if result.score > 0]
+        return [r for r in scored[:limit] if r.score >= self.settings.min_keyword_score]
+
+    def search(self, query: str, limit: int | None = None) -> list[SearchResult]:
+        """Ixtiyoriy savol uchun semantik + keyword RAG qidiruv."""
+        limit = limit or self.settings.max_context_chunks
+        combined: dict[str, SearchResult] = {}
+
+        if self.vector_index and self.vector_index.available:
+            for result in self.vector_index.search(query, limit=limit):
+                combined[result.chunk.id] = result
+
+        for result in self.keyword_search(query, limit=limit):
+            existing = combined.get(result.chunk.id)
+            if existing:
+                # Hybrid qidiruv: vector natija ustiga keyword signalini ham qo'shamiz.
+                existing.score = max(existing.score, result.score)
+                existing.method = "hybrid"
+            else:
+                combined[result.chunk.id] = result
+
+        results = list(combined.values())
+        results.sort(key=lambda item: item.score, reverse=True)
+        return results[:limit]
+
+    def vector_status(self) -> dict:
+        if not self.vector_index:
+            return {"enabled": False, "available": False, "error": "Vector qidiruv o'chirilgan"}
+        return {
+            "enabled": True,
+            "available": self.vector_index.available,
+            "error": self.vector_index.error,
+            "model": self.settings.openai_embedding_model,
+        }

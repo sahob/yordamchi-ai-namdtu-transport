@@ -147,3 +147,7 @@ git push -u origin main
 - Qdrant yoki pgvector bilan professional vektor qidiruv.
 - Foydalanuvchi bahosi: “foydali / foydasiz”.
 - Savollar statistikasi va FAQ avtomatik generatsiyasi.
+
+## RAG AI versiya haqida
+
+`0.2.0-rag` versiyada platforma tayyor FAQ emas, `knowledge_base` papkasiga yuklangan normativ-huquqiy hujjatlar asosida ixtiyoriy savolga AI javob yaratadi. Buning uchun `.env` faylida `OPENAI_API_KEY` bo'lishi kerak. Batafsil: `docs/AI_RAG_SOZLASH.md`.

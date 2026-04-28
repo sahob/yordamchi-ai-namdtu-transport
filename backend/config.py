@@ -5,17 +5,23 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     app_name: str = "Yordamchi AI — NamDTU Transport fakulteti"
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0-rag"
     environment: str = "local"
 
-    # Optional OpenAI-compatible provider. The app works without this key by
-    # returning retrieval-based answers with citations.
+    # RAG platforma uchun AI modeli talab qilinadi. OPENAI_API_KEY bo'lmasa,
+    # tizim faqat manba topadi, lekin AI javob yaratmaydi.
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
+    openai_embedding_model: str = "text-embedding-3-small"
 
-    min_relevance_score: float = 0.08
-    max_context_chunks: int = 5
+    # Qidiruv sozlamalari
+    max_context_chunks: int = 8
+    min_keyword_score: float = 0.03
+    min_vector_score: float = 0.20
+    use_vector_search: bool = True
+
     knowledge_base_dir: str = "knowledge_base"
+    vector_index_path: str = ".cache/vector_index.json"
 
     class Config:
         env_file = ".env"
